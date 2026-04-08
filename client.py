@@ -1,17 +1,9 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
-
-"""Clinical Trial Env Environment Client."""
+"""Clinical Trial Env - Client wrapper."""
 
 from typing import Dict
-
 from openenv.core import EnvClient
 from openenv.core.client_types import StepResult
 from openenv.core.env_server.types import State
-
 from .models import ClinicalTrialAction, ClinicalTrialObservation
 
 
@@ -19,64 +11,39 @@ class ClinicalTrialEnv(
     EnvClient[ClinicalTrialAction, ClinicalTrialObservation, State]
 ):
     """
-    Client for the Clinical Trial Env Environment.
+    Client for the Clinical Trial Environment.
 
-    This client maintains a persistent WebSocket connection to the environment server,
-    enabling efficient multi-step interactions with lower latency.
-    Each client instance has its own dedicated environment session on the server.
+    Maintains a persistent WebSocket connection to the environment server,
+    enabling efficient multi-step interactions.
 
     Example:
-        >>> # Connect to a running server
-        >>> with ClinicalTrialEnv(base_url="http://localhost:8000") as client:
+        >>> with ClinicalTrialEnv(base_url="http://localhost:7860") as client:
         ...     result = client.reset()
-        ...     print(result.observation.echoed_message)
-        ...
-        ...     result = client.step(ClinicalTrialAction(message="Hello!"))
-        ...     print(result.observation.echoed_message)
-
-    Example with Docker:
-        >>> # Automatically start container and connect
-        >>> client = ClinicalTrialEnv.from_docker_image("clinical_trial_env-env:latest")
-        >>> try:
-        ...     result = client.reset()
-        ...     result = client.step(ClinicalTrialAction(message="Test"))
-        ... finally:
-        ...     client.close()
+        ...     action = ClinicalTrialAction(action_type="ask", field_request="age")
+        ...     result = client.step(action)
+        ...     action = ClinicalTrialAction(action_type="decide", eligible=True, reason="age ok")
+        ...     result = client.step(action)
     """
 
     def _step_payload(self, action: ClinicalTrialAction) -> Dict:
-        """
-        Convert ClinicalTrialAction to JSON payload for step message.
-
-        Args:
-            action: ClinicalTrialAction instance
-
-        Returns:
-            Dictionary representation suitable for JSON encoding
-        """
-        return {
-            "message": action.message,
-        }
+        payload = {"action_type": action.action_type}
+        if action.action_type == "ask":
+            payload["field_request"] = action.field_request
+        elif action.action_type == "decide":
+            payload["eligible"] = action.eligible
+            payload["reason"] = action.reason
+        return payload
 
     def _parse_result(self, payload: Dict) -> StepResult[ClinicalTrialObservation]:
-        """
-        Parse server response into StepResult[ClinicalTrialObservation].
-
-        Args:
-            payload: JSON response data from server
-
-        Returns:
-            StepResult with ClinicalTrialObservation
-        """
         obs_data = payload.get("observation", {})
         observation = ClinicalTrialObservation(
-            echoed_message=obs_data.get("echoed_message", ""),
-            message_length=obs_data.get("message_length", 0),
-            done=payload.get("done", False),
-            reward=payload.get("reward"),
-            metadata=obs_data.get("metadata", {}),
+            revealed_fields=obs_data.get("revealed_fields", {}),
+            last_answer=obs_data.get("last_answer"),
+            trial_criteria=obs_data.get("trial_criteria", {}),
+            questions_asked=obs_data.get("questions_asked", 0),
+            task_id=obs_data.get("task_id", ""),
+            decision_made=obs_data.get("decision_made", False),
         )
-
         return StepResult(
             observation=observation,
             reward=payload.get("reward"),
@@ -84,15 +51,6 @@ class ClinicalTrialEnv(
         )
 
     def _parse_state(self, payload: Dict) -> State:
-        """
-        Parse server response into State object.
-
-        Args:
-            payload: JSON response from state request
-
-        Returns:
-            State object with episode_id and step_count
-        """
         return State(
             episode_id=payload.get("episode_id"),
             step_count=payload.get("step_count", 0),

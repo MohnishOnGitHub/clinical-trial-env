@@ -1,5 +1,5 @@
 spec_version: 1
-name: clinical-trial-env-v2
+name: clinical-trial-env
 type: space
 runtime: fastapi
 app: server/app.py:app

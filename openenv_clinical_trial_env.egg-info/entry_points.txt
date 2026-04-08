@@ -1,2 +1,0 @@
-[console_scripts]
-server = clinical_trial_env.server.app:main
