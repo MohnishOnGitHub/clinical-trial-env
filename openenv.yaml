@@ -1,0 +1,13 @@
+spec_version: 1
+name: clinical-trial-env-v2
+type: space
+runtime: fastapi
+app: server/app.py:app
+port: 7860
+tasks:
+  - id: single_criterion
+    difficulty: easy
+  - id: multi_criteria
+    difficulty: medium
+  - id: edge_case
+    difficulty: hard
