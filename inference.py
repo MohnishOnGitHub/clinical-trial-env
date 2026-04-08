@@ -1,17 +1,18 @@
 import os
 from openai import OpenAI
 from server.clinical_trial_env_environment import ClinicalTrialEnvironment
-from models import ClinicalTrialAction  # ✅ fixed import
+from models import ClinicalTrialAction
 
 # ===== ENV VARIABLES =====
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME   = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 HF_TOKEN     = os.getenv("HF_TOKEN")
+API_KEY      = os.getenv("API_KEY", HF_TOKEN)
 
-if HF_TOKEN is None:
-    raise ValueError("HF_TOKEN environment variable is required")
+if API_KEY is None:
+    raise ValueError("API_KEY or HF_TOKEN environment variable is required")
 
-client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
+client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
 BENCHMARK = "clinical_trial"
 MAX_STEPS = 10
@@ -44,29 +45,31 @@ def log_end(success: bool, steps: int, rewards: list):
     )
 
 
-# ===== BASELINE AGENT LOGIC =====
-def get_decision(revealed: dict, criteria: dict) -> tuple[bool, str]:
-    """Rule-based agent — checks each revealed field against criteria."""
-    for field, value in revealed.items():
-        if field == "age":
-            age_min = criteria.get("age_min", 0)
-            age_max = criteria.get("age_max", 999)
-            if not (age_min <= value <= age_max):
-                return False, f"age {value} outside range {age_min}-{age_max}"
-        if field == "egfr":
-            egfr_min = criteria.get("egfr_min", 0)
-            if value is None or value < egfr_min:  # ✅ handles None (your earlier bug)
-                return False, f"egfr {value} below minimum {egfr_min}"
-        if field == "hba1c":
-            hba1c_max = criteria.get("hba1c_max", 999)
-            if value is not None and value > hba1c_max:
-                return False, f"hba1c {value} above maximum {hba1c_max}"
-        if field == "medications":
-            excluded = criteria.get("excluded_meds", [])
-            bad = [m for m in (value or []) if m in excluded]
-            if bad:
-                return False, f"excluded medications present: {bad}"
-    return True, "all revealed criteria met"
+# ===== LLM DECISION =====
+def get_decision_from_llm(revealed: dict, criteria: dict) -> tuple[bool, str]:
+    """Use LLM via proxy to decide eligibility based on revealed fields."""
+    prompt = f"""You are a clinical trial eligibility screener.
+
+Trial criteria:
+{criteria}
+
+Revealed patient fields:
+{revealed}
+
+Based only on the revealed fields and the trial criteria, is this patient eligible?
+Respond in exactly this format:
+ELIGIBLE: true or false
+REASON: one sentence explanation referencing specific values
+"""
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=100,
+    )
+    text = response.choices[0].message.content.strip()
+    eligible = "eligible: true" in text.lower()
+    reason = text.split("REASON:")[-1].strip() if "REASON:" in text else text
+    return eligible, reason
 
 
 # ===== SINGLE TASK EPISODE =====
@@ -74,7 +77,6 @@ def run_task(task_id: str):
     env = ClinicalTrialEnvironment()
     step_result = env.reset(task_id=task_id)
 
-    # ✅ Handle both flat and nested reset returns
     obs = getattr(step_result, "observation", step_result)
 
     rewards = []
@@ -90,10 +92,9 @@ def run_task(task_id: str):
             if step_count >= MAX_STEPS - 1:
                 break
 
-            action = ClinicalTrialAction(action_type="ask", field_request=field)  # ✅
+            action = ClinicalTrialAction(action_type="ask", field_request=field)
             step_result = env.step(action)
 
-            # ✅ Safely unpack result
             reward = float(getattr(step_result, "reward", 0.0) or 0.0)
             done = bool(getattr(step_result, "done", False))
             obs = getattr(step_result, "observation", step_result)
@@ -106,30 +107,12 @@ def run_task(task_id: str):
                 success = reward >= 0.5
                 break
 
-            # Check if we already know it fails — decide early
-            early_eligible, early_reason = get_decision(
+        else:
+            # Asked all fields — use LLM for final decision
+            eligible, reason = get_decision_from_llm(
                 obs.revealed_fields, obs.trial_criteria
             )
-            if not early_eligible:
-                action = ClinicalTrialAction(  # ✅
-                    action_type="decide",
-                    eligible=False,
-                    reason=early_reason
-                )
-                step_result = env.step(action)
-                reward = float(getattr(step_result, "reward", 0.0) or 0.0)
-                done = bool(getattr(step_result, "done", False))
-
-                step_count += 1
-                rewards.append(reward)
-                log_step(step_count, "decide:not_eligible", reward, done)
-                success = reward >= 0.5
-                break
-
-        else:
-            # Asked all fields — make final decision
-            eligible, reason = get_decision(obs.revealed_fields, obs.trial_criteria)
-            action = ClinicalTrialAction(  # ✅
+            action = ClinicalTrialAction(
                 action_type="decide",
                 eligible=eligible,
                 reason=reason
