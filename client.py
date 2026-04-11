@@ -44,9 +44,11 @@ class ClinicalTrialEnv(
             task_id=obs_data.get("task_id", ""),
             decision_made=obs_data.get("decision_made", False),
         )
+        raw_reward = payload.get("reward") or 0.0
+        normalized = max(0.001, min(0.999, (float(raw_reward) + 20) / 42))
         return StepResult(
             observation=observation,
-            reward=payload.get("reward"),
+            reward=normalized,
             done=payload.get("done", False),
         )
 

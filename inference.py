@@ -24,12 +24,6 @@ TASK_FIELDS = {
 }
 
 
-# ===== NORMALIZE =====
-def normalize_score(r):
-    score = (r + 20) / 42
-    return max(0.001, min(0.999, score))
-
-
 # ===== LOG FUNCTIONS =====
 def log_start(task: str, env: str, model: str):
     print(f"[START] task={task} env={env} model={model}", flush=True)
@@ -37,16 +31,14 @@ def log_start(task: str, env: str, model: str):
 def log_step(step: int, action: str, reward: float, done: bool, error=None):
     done_str = str(done).lower()
     error_val = error if error else "null"
-    normalized = normalize_score(reward)
     print(
-        f"[STEP] step={step} action={action} reward={normalized:.2f} "
+        f"[STEP] step={step} action={action} reward={reward:.2f} "
         f"done={done_str} error={error_val}",
         flush=True
     )
 
 def log_end(success: bool, steps: int, rewards: list):
-    normalized = [normalize_score(r) for r in rewards]
-    rewards_str = ",".join(f"{r:.2f}" for r in normalized)
+    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
     print(
         f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}",
         flush=True
