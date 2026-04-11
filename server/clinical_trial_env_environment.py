@@ -13,7 +13,8 @@ from models import ClinicalTrialAction, ClinicalTrialObservation
 
 def normalize(raw):
     score = (raw + 20) / 42
-    return max(0.001, min(0.999, score))
+    result = max(0.001, min(0.999, score))
+    return float(result)
 
 
 class ClinicalTrialEnvironment(Environment):
@@ -31,7 +32,12 @@ class ClinicalTrialEnvironment(Environment):
         self.task = None
 
     def build_obs(self, reward, done, last_answer=None):
-        normalized_reward = normalize(reward) if done else 0.476
+        if done:
+            normalized_reward = normalize(reward)
+        else:
+            normalized_reward = 0.476
+        normalized_reward = float(normalized_reward)
+        normalized_reward = max(0.001, min(0.999, normalized_reward))
         return ClinicalTrialObservation(
             revealed_fields=self.revealed,
             last_answer=last_answer,
