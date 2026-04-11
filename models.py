@@ -16,3 +16,5 @@ class ClinicalTrialObservation(Observation):
     questions_asked: int = 0
     task_id: str = ''
     decision_made: bool = False
+    done: bool = False
+    reward: float = 0.476
