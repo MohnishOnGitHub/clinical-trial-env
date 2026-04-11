@@ -2,7 +2,8 @@ import random
 
 # ---------- NORMALIZATION ----------
 def normalize(raw):
-    return max(0.0, min(1.0, (raw + 20) / 42))
+    score = (raw + 20) / 42
+    return max(0.001, min(0.999, score))
 
 
 # ---------- REASON CHECK ----------
