@@ -31,7 +31,7 @@ class ClinicalTrialEnvironment(Environment):
         self.task = None
 
     def build_obs(self, reward, done, last_answer=None):
-        normalized_reward = normalize(reward) if done else 0.001
+        normalized_reward = normalize(reward) if done else 0.476
         return ClinicalTrialObservation(
             revealed_fields=self.revealed,
             last_answer=last_answer,
@@ -94,13 +94,11 @@ class ClinicalTrialEnvironment(Environment):
 
         elif action.action_type == "decide":
             self.done = True
-
             reward = self.task.grade(
                 action,
                 self.hidden_patient,
                 self.questions_asked
             )
-
             return self.build_obs(reward, True)
 
         return self.build_obs(-1.0, False, "unknown_action_type")
