@@ -11,6 +11,11 @@ except ImportError:
 from models import ClinicalTrialAction, ClinicalTrialObservation
 
 
+def normalize(raw):
+    score = (raw + 20) / 42
+    return max(0.001, min(0.999, score))
+
+
 class ClinicalTrialEnvironment(Environment):
 
     SUPPORTS_CONCURRENT_SESSIONS: bool = True
@@ -26,6 +31,7 @@ class ClinicalTrialEnvironment(Environment):
         self.task = None
 
     def build_obs(self, reward, done, last_answer=None):
+        normalized_reward = normalize(reward) if done else 0.001
         return ClinicalTrialObservation(
             revealed_fields=self.revealed,
             last_answer=last_answer,
@@ -34,13 +40,12 @@ class ClinicalTrialEnvironment(Environment):
             task_id=self.task_id,
             decision_made=done,
             done=done,
-            reward=reward
+            reward=normalized_reward
         )
 
     def reset(self, task_id: str = None) -> ClinicalTrialObservation:
         self._state = State(episode_id=str(uuid4()), step_count=0)
 
-        # Use provided task_id if valid, otherwise pick randomly
         if task_id and task_id in TASKS:
             self.task = TASKS[task_id]
         else:
@@ -49,7 +54,6 @@ class ClinicalTrialEnvironment(Environment):
         self.task_id = self.task.task_id
         self.hidden_patient = self.task.generate_patient()
 
-        # Ensure all fields always exist
         self.hidden_patient.setdefault("age", random.randint(10, 80))
         self.hidden_patient.setdefault("egfr", random.randint(20, 90))
         self.hidden_patient.setdefault("hba1c", round(random.uniform(5.0, 10.0), 1))
@@ -66,7 +70,6 @@ class ClinicalTrialEnvironment(Environment):
     def step(self, action: ClinicalTrialAction) -> ClinicalTrialObservation:
         self._state.step_count += 1
 
-        # Hard step limit
         if self._state.step_count >= 10:
             self.done = True
             return self.build_obs(-5.0, True)
@@ -100,7 +103,6 @@ class ClinicalTrialEnvironment(Environment):
 
             return self.build_obs(reward, True)
 
-        # Fallback
         return self.build_obs(-1.0, False, "unknown_action_type")
 
     @property
