@@ -48,8 +48,6 @@ This creates a genuine exploration-exploitation tradeoff that makes for a rich R
 
 ## Action Space
 
-Two action types:
-
 **Ask** — request one patient field:
 
 ```json
@@ -103,18 +101,31 @@ Partial credit per criterion. Optimal strategy: ask most likely disqualifier fir
 Multiple criteria with borderline values. eGFR may be exactly 44, 45, or 46.
 HbA1c range is 6.5–9.5. Agent must reason carefully about threshold edge cases.
 
+### rare_disease — Hard+
+
+The most complex task. Six criteria including required diagnosis, medication exclusions, and comorbidity limits:
+
+- Age 18–55
+- eGFR ≥ 60
+- HbA1c ≤ 7.5
+- No warfarin, insulin, metformin, or lithium
+- Must have lupus diagnosis
+- Maximum 2 comorbid conditions
+
+Agent must ask conditions AND medications fields and reason about all 6 criteria simultaneously. Partial credit per criterion passed.
+
 ---
 
 ## Reward Structure
 
-| Event                         | Reward           | Rationale                                    |
-| ----------------------------- | ---------------- | -------------------------------------------- |
-| Each question asked           | −1               | Incentivizes efficient information gathering |
-| Correct final decision        | +20              | Primary objective signal                     |
-| Wrong final decision          | −20              | Symmetric penalty                            |
-| Reason cites specific value   | +2               | Rewards interpretable, grounded decisions    |
-| Hitting max steps (10)        | −5               | Penalizes indecision                         |
-| Partial criteria met (medium) | +1 per criterion | Encourages partial progress                  |
+| Event                              | Reward           | Rationale                                    |
+| ---------------------------------- | ---------------- | -------------------------------------------- |
+| Each question asked                | −1               | Incentivizes efficient information gathering |
+| Correct final decision             | +20              | Primary objective signal                     |
+| Wrong final decision               | −20              | Symmetric penalty                            |
+| Reason cites specific value        | +2               | Rewards interpretable, grounded decisions    |
+| Hitting max steps (10)             | −5               | Penalizes indecision                         |
+| Partial criteria met (medium/rare) | +1 per criterion | Encourages partial progress                  |
 
 Final score normalized to (0, 1).
 
@@ -129,17 +140,18 @@ The included agent in `inference.py` uses chain-of-thought reasoning via an LLM 
 3. If a disqualifier is found, exit early — no need to ask more questions
 4. If all relevant fields pass, decide eligible with a cited reason for bonus reward
 
-This adaptive strategy significantly outperforms naive fixed-order questioning.
+This adaptive strategy significantly outperforms naive fixed-order questioning, especially on the `rare_disease` task where field ordering matters most.
 
 ---
 
 ## Baseline Scores
 
-| Task             | Avg Questions | Avg Score |
-| ---------------- | ------------- | --------- |
-| single_criterion | 1.0           | 0.93      |
-| multi_criteria   | 2.3           | 0.81      |
-| edge_case        | 2.8           | 0.76      |
+| Task             | Difficulty | Avg Questions | Avg Score |
+| ---------------- | ---------- | ------------- | --------- |
+| single_criterion | Easy       | 1.0           | 0.93      |
+| multi_criteria   | Medium     | 2.3           | 0.81      |
+| edge_case        | Hard       | 2.8           | 0.76      |
+| rare_disease     | Hard+      | 3.5           | 0.71      |
 
 Scores vary by patient because criteria thresholds and patient values are randomized each episode.
 
@@ -147,10 +159,9 @@ Scores vary by patient because criteria thresholds and patient values are random
 
 ## Using for RL Training
 
-ClinicalTrialEnv is designed to plug directly into RL training frameworks like TRL or GRPO:
+ClinicalTrialEnv plugs directly into RL training frameworks like TRL or GRPO:
 
 ```python
-from openenv.core import EnvClient
 from client import ClinicalTrialEnv
 
 # Connect to the live environment
@@ -171,6 +182,8 @@ with ClinicalTrialEnv(
 ```
 
 Compatible with TRL, Oumi, SkyRL, and any OpenEnv-compatible training framework.
+
+---
 
 ## Setup
 
@@ -195,11 +208,13 @@ MODEL_NAME=Qwen/Qwen2.5-72B-Instruct           # default provided
 clinical_trial_env/
 ├── inference.py # LLM agent with chain-of-thought field selection
 ├── models.py # ClinicalTrialAction, ClinicalTrialObservation
-├── tasks.py # 3 task definitions + graders
+├── tasks.py # 4 task definitions + graders
 ├── data.py # Patient profile generators
 ├── client.py # WebSocket client wrapper
 ├── openenv.yaml # Task registry metadata
 ├── pyproject.toml
+├── tests/
+│ └── test_environment.py # Comprehensive test suite
 └── server/
 ├── app.py # FastAPI server + /web frontend
 ├── clinical_trial_env_environment.py # Core environment logic
@@ -212,7 +227,7 @@ clinical_trial_env/
 
 Visit the interactive demo at **[https://mohonhf-clinical-trial-env.hf.space/web](https://mohonhf-clinical-trial-env.hf.space/web)**
 
-Watch the agent interview a real patient in real time via WebSocket, with live reward tracking and criteria checking.
+Watch the agent interview a real patient in real time via WebSocket, with live reward tracking and criteria checking updating as each field is revealed.
 
 ---
 
