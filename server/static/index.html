@@ -460,7 +460,7 @@
     <h1>Patient Screening<br>via <span class="accent">Sequential Reasoning</span></h1>
     <p>An RL environment where an AI agent interviews patients one field at a time, then decides clinical trial eligibility — penalized for every unnecessary question asked.</p>
     <div class="hero-stats">
-      <div class="hero-stat"><span class="hero-stat-val">3</span><span class="hero-stat-label">Task Tiers</span></div>
+      <div class="hero-stat"><span class="hero-stat-val">4</span><span class="hero-stat-label">Task Tiers</span></div>
       <div class="hero-stat"><span class="hero-stat-val">±20</span><span class="hero-stat-label">Decision Reward</span></div>
       <div class="hero-stat"><span class="hero-stat-val">−1</span><span class="hero-stat-label">Per Question</span></div>
       <div class="hero-stat"><span class="hero-stat-val">10</span><span class="hero-stat-label">Max Steps</span></div>
@@ -492,10 +492,12 @@
             <span id="statusText">Ready — connected to live environment server</span>
           </div>
 
+          <!-- TASK SELECTOR: now includes Hard+ rare_disease button -->
           <div class="task-selector">
             <button class="task-btn active" onclick="selectTask('single_criterion',this)">Easy</button>
             <button class="task-btn" onclick="selectTask('multi_criteria',this)">Medium</button>
             <button class="task-btn" onclick="selectTask('edge_case',this)">Hard</button>
+            <button class="task-btn" onclick="selectTask('rare_disease',this)">Hard+</button>
           </div>
 
           <div class="patient-card">
@@ -522,6 +524,10 @@
               <div class="field-item hidden-field" id="field-medications">
                 <div class="field-label">Medications</div>
                 <div class="field-value hidden" id="val-medications">• • •</div>
+              </div>
+              <div class="field-item hidden-field" id="field-conditions">
+                <div class="field-label">Conditions</div>
+                <div class="field-value hidden" id="val-conditions">• • •</div>
               </div>
             </div>
           </div>
@@ -680,26 +686,53 @@
 const BASE_URL = window.location.origin;
 const WS_URL = BASE_URL.replace('https://', 'wss://').replace('http://', 'ws://') + '/ws';
 
+// ── TASK LABELS ──────────────────────────────────────────────────────────────
 const TASK_LABELS = {
   single_criterion: 'Single Criterion — Easy',
-  multi_criteria: 'Multi Criteria — Medium',
-  edge_case: 'Edge Case — Hard'
+  multi_criteria:   'Multi Criteria — Medium',
+  edge_case:        'Edge Case — Hard',
+  rare_disease:     'Rare Disease — Hard+'
 };
 
+// ── TASK CRITERIA ─────────────────────────────────────────────────────────────
 const TASK_CRITERIA = {
   single_criterion: [
-    { label: 'Age 18–65', field: 'age', check: (p, r) => r.age !== undefined ? (p.age >= 18 && p.age <= 65) : null }
+    { label: 'Age 18–65', field: 'age',
+      check: (p, r) => r.age !== undefined ? (p.age >= 18 && p.age <= 65) : null }
   ],
   multi_criteria: [
-    { label: 'Age 30–70', field: 'age', check: (p, r) => r.age !== undefined ? (p.age >= 30 && p.age <= 70) : null },
-    { label: 'eGFR >= 45', field: 'egfr', check: (p, r) => r.egfr !== undefined ? (p.egfr >= 45) : null },
-    { label: 'HbA1c <= 8.0', field: 'hba1c', check: (p, r) => r.hba1c !== undefined ? (p.hba1c <= 8.0) : null },
-    { label: 'No warfarin/insulin', field: 'medications', check: (p, r) => r.medications !== undefined ? !['warfarin','insulin'].some(m => (p.medications||[]).includes(m)) : null }
+    { label: 'Age 30–70', field: 'age',
+      check: (p, r) => r.age !== undefined ? (p.age >= 30 && p.age <= 70) : null },
+    { label: 'eGFR >= 45', field: 'egfr',
+      check: (p, r) => r.egfr !== undefined ? (p.egfr >= 45) : null },
+    { label: 'HbA1c <= 8.0', field: 'hba1c',
+      check: (p, r) => r.hba1c !== undefined ? (p.hba1c <= 8.0) : null },
+    { label: 'No warfarin/insulin', field: 'medications',
+      check: (p, r) => r.medications !== undefined
+        ? !['warfarin','insulin'].some(m => (p.medications||[]).includes(m)) : null }
   ],
   edge_case: [
-    { label: 'Age 45–75', field: 'age', check: (p, r) => r.age !== undefined ? (p.age >= 45 && p.age <= 75) : null },
-    { label: 'eGFR >= 45', field: 'egfr', check: (p, r) => r.egfr !== undefined ? (p.egfr >= 45) : null },
-    { label: 'HbA1c 6.5–9.5', field: 'hba1c', check: (p, r) => r.hba1c !== undefined ? (p.hba1c >= 6.5 && p.hba1c <= 9.5) : null }
+    { label: 'Age 45–75', field: 'age',
+      check: (p, r) => r.age !== undefined ? (p.age >= 45 && p.age <= 75) : null },
+    { label: 'eGFR >= 45', field: 'egfr',
+      check: (p, r) => r.egfr !== undefined ? (p.egfr >= 45) : null },
+    { label: 'HbA1c 6.5–9.5', field: 'hba1c',
+      check: (p, r) => r.hba1c !== undefined ? (p.hba1c >= 6.5 && p.hba1c <= 9.5) : null }
+  ],
+  rare_disease: [
+    { label: 'Age 18–55', field: 'age',
+      check: (p, r) => r.age !== undefined ? (p.age >= 18 && p.age <= 55) : null },
+    { label: 'eGFR >= 60', field: 'egfr',
+      check: (p, r) => r.egfr !== undefined ? (p.egfr >= 60) : null },
+    { label: 'HbA1c <= 7.5', field: 'hba1c',
+      check: (p, r) => r.hba1c !== undefined ? (p.hba1c <= 7.5) : null },
+    { label: 'No warfarin/insulin/metformin/lithium', field: 'medications',
+      check: (p, r) => r.medications !== undefined
+        ? !['warfarin','insulin','metformin','lithium'].some(m => (p.medications||[]).includes(m)) : null },
+    { label: 'Must have lupus', field: 'conditions',
+      check: (p, r) => r.conditions !== undefined ? (p.conditions||[]).includes('lupus') : null },
+    { label: 'Max 2 conditions', field: 'conditions',
+      check: (p, r) => r.conditions !== undefined ? (p.conditions||[]).length <= 2 : null }
   ]
 };
 
@@ -831,6 +864,18 @@ function getNextAction(revealed, criteria, askedFields) {
       return { action: 'decide', eligible: false, reason: `Patient is on excluded medication: ${bad.join(', ')}` };
     }
   }
+  // rare_disease: conditions check
+  if (criteria.required_conditions && revealed.conditions !== undefined) {
+    const missing = criteria.required_conditions.filter(c => !(revealed.conditions||[]).includes(c));
+    if (missing.length) {
+      return { action: 'decide', eligible: false, reason: `Patient missing required condition: ${missing.join(', ')}` };
+    }
+  }
+  if (criteria.max_conditions !== undefined && revealed.conditions !== undefined) {
+    if ((revealed.conditions||[]).length > criteria.max_conditions) {
+      return { action: 'decide', eligible: false, reason: `Patient has ${revealed.conditions.length} conditions, exceeds max of ${criteria.max_conditions}` };
+    }
+  }
 
   // No more fields to ask — make final decision
   if (remaining.length === 0 || !remaining.some(f => Object.keys(criteria).some(k => k.includes(f)))) {
@@ -838,6 +883,7 @@ function getNextAction(revealed, criteria, askedFields) {
     if (revealed.age) parts.push(`age ${revealed.age}`);
     if (revealed.egfr) parts.push(`eGFR ${revealed.egfr}`);
     if (revealed.hba1c) parts.push(`HbA1c ${revealed.hba1c}`);
+    if (revealed.conditions) parts.push(`conditions: ${(revealed.conditions||[]).join(', ')}`);
     return { action: 'decide', eligible: true, reason: `All criteria met: ${parts.join(', ')} within required ranges` };
   }
 
@@ -847,6 +893,7 @@ function getNextAction(revealed, criteria, askedFields) {
   if (criteria.age_min && !askedFields.includes('age')) priority.push('age');
   if (criteria.hba1c_max && !askedFields.includes('hba1c')) priority.push('hba1c');
   if (criteria.no_meds && !askedFields.includes('medications')) priority.push('medications');
+  if ((criteria.required_conditions || criteria.max_conditions) && !askedFields.includes('conditions')) priority.push('conditions');
 
   const nextField = priority[0] || remaining[0];
   if (nextField) return { action: 'ask', field: nextField };
@@ -894,7 +941,7 @@ async function runEpisode() {
   document.getElementById('patientId').textContent = Math.floor(Math.random() * 9000 + 1000);
   document.getElementById('taskLabel').textContent = TASK_LABELS[state.task];
 
-  ['age','egfr','hba1c','medications'].forEach(f => {
+  ['age','egfr','hba1c','medications','conditions'].forEach(f => {
     const el = document.getElementById('field-' + f);
     const val = document.getElementById('val-' + f);
     if (el) el.className = 'field-item hidden-field';
@@ -1020,21 +1067,23 @@ async function runEpisode() {
   }
 }
 
+// ── SIMULATION FALLBACK ───────────────────────────────────────────────────────
 async function runSimulation(criteria) {
   const simPatients = {
-    single_criterion: { age: 45, egfr: 62, hba1c: 7.2, medications: ['metformin'] },
-    multi_criteria: { age: 52, egfr: 58, hba1c: 7.1, medications: ['metformin'] },
-    edge_case: { age: 58, egfr: 45, hba1c: 7.4, medications: ['none'] }
+    single_criterion: { age: 45, egfr: 62, hba1c: 7.2, medications: ['metformin'], conditions: [] },
+    multi_criteria:   { age: 52, egfr: 58, hba1c: 7.1, medications: ['metformin'], conditions: [] },
+    edge_case:        { age: 58, egfr: 45, hba1c: 7.4, medications: ['none'],      conditions: [] },
+    rare_disease:     { age: 34, egfr: 72, hba1c: 6.8, medications: ['hydroxychloroquine'], conditions: ['lupus'] }
   };
   const simFields = {
     single_criterion: ['age'],
-    multi_criteria: ['egfr', 'age', 'hba1c', 'medications'],
-    edge_case: ['egfr', 'hba1c', 'age']
+    multi_criteria:   ['egfr', 'age', 'hba1c', 'medications'],
+    edge_case:        ['egfr', 'hba1c', 'age'],
+    rare_disease:     ['conditions', 'age', 'egfr', 'hba1c', 'medications']
   };
 
   const p = simPatients[state.task];
   const fields = simFields[state.task];
-  criteria = criteria || {};
 
   for (const field of fields) {
     state.step++; state.questionCount++; state.score -= 1;
@@ -1048,9 +1097,13 @@ async function runSimulation(criteria) {
     await sleep(500);
   }
 
-  const parts = Object.entries(state.patientData).map(([k,v]) => `${k} ${v}`).join(', ');
+  const parts = Object.entries(state.patientData).map(([k,v]) =>
+    `${k} ${Array.isArray(v) ? v.join('/') : v}`
+  ).join(', ');
   const reason = `All criteria met: ${parts}`;
-  state.step++; state.decisionBonus = 20; state.score += 22;
+  state.step++;
+  state.decisionBonus = 20;
+  state.score += 22;
   state.reasonBonus = 2;
   addLog('decision correct', `<strong>DECISION: ELIGIBLE ✓</strong> — ${reason}`);
   addStepPip('decide-correct');
@@ -1068,7 +1121,7 @@ function resetDemo() {
   state.questionCount = 0; state.reasonBonus = 0;
   state.revealedFields = {}; state.patientData = {}; state.done = false;
 
-  ['age','egfr','hba1c','medications'].forEach(f => {
+  ['age','egfr','hba1c','medications','conditions'].forEach(f => {
     const el = document.getElementById('field-' + f);
     const val = document.getElementById('val-' + f);
     if (el) el.className = 'field-item hidden-field';
