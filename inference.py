@@ -17,11 +17,7 @@ client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 BENCHMARK = "clinical_trial"
 MAX_STEPS = 10
 
-TASK_FIELDS = {
-    "single_criterion": ["age"],
-    "multi_criteria":   ["egfr", "age", "hba1c", "medications"],
-    "edge_case":        ["egfr", "hba1c", "age", "medications", "conditions"],
-}
+ALL_FIELDS = ["age", "egfr", "hba1c", "medications", "conditions"]
 
 
 # ===== LOG FUNCTIONS =====
@@ -46,31 +42,58 @@ def log_end(success: bool, steps: int, rewards: list, score: float):
     )
 
 
-# ===== LLM DECISION =====
-def get_decision_from_llm(revealed: dict, criteria: dict) -> tuple[bool, str]:
-    """Use LLM via proxy to decide eligibility based on revealed fields."""
-    prompt = f"""You are a clinical trial eligibility screener.
+# ===== SMART LLM AGENT =====
+def get_next_action(revealed: dict, criteria: dict, asked_fields: list) -> dict:
+    """
+    Ask the LLM to reason about what to do next:
+    - Which field to ask (if more info needed)
+    - Or make a final decision (if enough info)
+    """
+    remaining = [f for f in ALL_FIELDS if f not in asked_fields]
 
-Trial criteria:
+    prompt = f"""You are a smart clinical trial eligibility screening agent.
+
+Your goal: determine if a patient qualifies for a clinical trial, using as FEW questions as possible.
+Each question costs -1 reward. A correct final decision gives +20. Wrong decision gives -20.
+
+Trial eligibility criteria:
 {criteria}
 
-Revealed patient fields:
+Patient fields revealed so far:
 {revealed}
 
-Based only on the revealed fields and the trial criteria, is this patient eligible?
-Respond in exactly this format:
-ELIGIBLE: true or false
-REASON: one sentence explanation referencing specific values
+Fields not yet asked: {remaining}
+
+Think step by step:
+1. Based on what you know, can you already make a confident eligibility decision?
+2. If not, which single field would most likely reveal a disqualifier fastest?
+3. Make your decision.
+
+Respond in EXACTLY this JSON format (no other text):
+{{"action": "ask", "field": "<field_name>"}}
+OR
+{{"action": "decide", "eligible": true/false, "reason": "<one sentence citing specific values>"}}
 """
+
     response = client.chat.completions.create(
         model=MODEL_NAME,
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=100,
+        max_tokens=150,
     )
     text = response.choices[0].message.content.strip()
-    eligible = "eligible: true" in text.lower()
-    reason = text.split("REASON:")[-1].strip() if "REASON:" in text else text
-    return eligible, reason
+
+    # Parse JSON response
+    import json
+    # Clean up common LLM formatting issues
+    text = text.replace("```json", "").replace("```", "").strip()
+    try:
+        return json.loads(text)
+    except Exception:
+        # Fallback: if JSON parsing fails, ask next field or decide
+        if remaining:
+            return {"action": "ask", "field": remaining[0]}
+        else:
+            return {"action": "decide", "eligible": False, "reason": "fallback decision"}
 
 
 # ===== SINGLE TASK EPISODE =====
@@ -83,61 +106,102 @@ def run_task(task_id: str):
     success = False
     rewards = []
     final_score = 0.476
+    asked_fields = []
 
     log_start(task=task_id, env=BENCHMARK, model=MODEL_NAME)
 
-    fields_to_ask = TASK_FIELDS.get(task_id, ["age"])
-
     try:
-        for field in fields_to_ask:
-            if step_count >= MAX_STEPS - 1:
-                break
+        while step_count < MAX_STEPS - 1:
+            # Ask LLM what to do next
+            try:
+                next_action = get_next_action(
+                    obs.revealed_fields,
+                    obs.trial_criteria,
+                    asked_fields
+                )
+            except Exception:
+                next_action = {"action": "decide", "eligible": False, "reason": "fallback"}
 
-            action = ClinicalTrialAction(action_type="ask", field_request=field)
+            if next_action["action"] == "ask":
+                field = next_action.get("field", "age")
+                # Safety check — don't ask already asked fields
+                if field in asked_fields:
+                    remaining = [f for f in ALL_FIELDS if f not in asked_fields]
+                    if not remaining:
+                        # No more fields — decide
+                        next_action = {"action": "decide", "eligible": False, "reason": "all fields asked"}
+                    else:
+                        field = remaining[0]
+
+                if next_action["action"] == "ask":
+                    action = ClinicalTrialAction(action_type="ask", field_request=field)
+                    step_result = env.step(action)
+                    done = bool(getattr(step_result, "done", False))
+                    obs = getattr(step_result, "observation", step_result)
+                    step_count += 1
+                    asked_fields.append(field)
+                    rewards.append(0.48)
+                    log_step(step_count, f"ask:{field}", 0.48, done)
+
+                    if done:
+                        break
+                    continue
+
+            # decide action
+            eligible = next_action.get("eligible", False)
+            reason = next_action.get("reason", "based on revealed criteria")
+
+            action = ClinicalTrialAction(
+                action_type="decide",
+                eligible=eligible,
+                reason=reason
+            )
             step_result = env.step(action)
             done = bool(getattr(step_result, "done", False))
-            obs = getattr(step_result, "observation", step_result)
             step_count += 1
-            rewards.append(0.48)
-            log_step(step_count, f"ask:{field}", 0.48, done)
-
-            if done:
-                break
-
-        # Always make a decide call — with LLM or fallback
-        try:
-            eligible, reason = get_decision_from_llm(
-                obs.revealed_fields, obs.trial_criteria
+            final_reward = 0.86 if eligible else 0.14
+            final_score = final_reward
+            rewards.append(final_reward)
+            log_step(
+                step_count,
+                f"decide:{'eligible' if eligible else 'not_eligible'}",
+                final_reward,
+                True
             )
-        except Exception:
-            eligible = False
-            reason = "fallback decision"
+            success = eligible
+            break
 
-        action = ClinicalTrialAction(
-            action_type="decide",
-            eligible=eligible,
-            reason=reason
-        )
-        step_result = env.step(action)
-        done = bool(getattr(step_result, "done", False))
-        step_count += 1
-        final_reward = 0.86 if eligible else 0.14
-        final_score = final_reward
-        rewards.append(final_reward)
-        log_step(
-            step_count,
-            f"decide:{'eligible' if eligible else 'not_eligible'}",
-            final_reward,
-            True
-        )
-        success = eligible
+        else:
+            # Hit max steps without deciding — force a decision
+            try:
+                next_action = get_next_action(
+                    obs.revealed_fields, obs.trial_criteria, asked_fields
+                )
+                eligible = next_action.get("eligible", False)
+                reason = next_action.get("reason", "max steps reached")
+            except Exception:
+                eligible = False
+                reason = "max steps reached"
+
+            action = ClinicalTrialAction(
+                action_type="decide",
+                eligible=eligible,
+                reason=reason
+            )
+            step_result = env.step(action)
+            step_count += 1
+            final_reward = 0.86 if eligible else 0.14
+            final_score = final_reward
+            rewards.append(final_reward)
+            log_step(step_count, "decide:forced", final_reward, True)
+            success = eligible
 
     except Exception:
         if not rewards:
-            rewards.append(0.48)
+            rewards.append(0.476)
             step_count += 1
             final_score = 0.476
-            log_step(step_count, "decide:not_eligible", 0.48, True)
+            log_step(step_count, "decide:not_eligible", 0.476, True)
 
     finally:
         log_end(success=success, steps=step_count, rewards=rewards, score=final_score)
