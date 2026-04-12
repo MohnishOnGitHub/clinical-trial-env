@@ -145,6 +145,33 @@ Scores vary by patient because criteria thresholds and patient values are random
 
 ---
 
+## Using for RL Training
+
+ClinicalTrialEnv is designed to plug directly into RL training frameworks like TRL or GRPO:
+
+```python
+from openenv.core import EnvClient
+from client import ClinicalTrialEnv
+
+# Connect to the live environment
+with ClinicalTrialEnv(
+    base_url="https://mohonhf-clinical-trial-env.hf.space"
+).sync() as env:
+
+    # Run a full episode
+    result = env.reset(task_id="multi_criteria")
+
+    while not result.done:
+        # Your policy generates an action
+        action = your_policy(result.observation)
+        result = env.step(action)
+
+    # Use reward signal for GRPO/PPO training
+    episode_reward = result.reward
+```
+
+Compatible with TRL, Oumi, SkyRL, and any OpenEnv-compatible training framework.
+
 ## Setup
 
 ```bash

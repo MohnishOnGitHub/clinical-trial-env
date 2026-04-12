@@ -1,4 +1,6 @@
 import random
+from data import generate_patient_easy, generate_patient_medium, generate_patient_hard
+
 
 # ---------- REASON CHECK ----------
 def good_reason(reason, patient):
@@ -6,9 +8,9 @@ def good_reason(reason, patient):
         return False
     r = reason.lower()
     return (
-        ("egfr" in r and str(patient["egfr"]) in r) or
-        ("hba1c" in r and str(patient["hba1c"]) in r) or
-        ("age" in r and str(patient["age"]) in r)
+        ("egfr" in r and str(patient.get("egfr", "")) in r) or
+        ("hba1c" in r and str(patient.get("hba1c", "")) in r) or
+        ("age" in r and str(patient.get("age", "")) in r)
     )
 
 
@@ -36,7 +38,7 @@ class EasyTask(BaseTask):
         return {"age_min": 18, "age_max": 65}
 
     def generate_patient(self):
-        return {"age": random.randint(10, 80)}
+        return generate_patient_easy()
 
     def grade(self, action, patient, questions_asked):
         eligible = 18 <= patient["age"] <= 65
@@ -47,7 +49,7 @@ class EasyTask(BaseTask):
             raw += 1
         if good_reason(action.reason, patient):
             raw += 1
-        return raw  # raw, not normalized
+        return raw
 
 
 # ---------- MEDIUM ----------
@@ -63,14 +65,7 @@ class MediumTask(BaseTask):
         }
 
     def generate_patient(self):
-        return {
-            "age": random.randint(20, 80),
-            "egfr": random.randint(20, 90),
-            "hba1c": round(random.uniform(5.0, 10.0), 1),
-            "medications": random.sample(
-                ["warfarin", "insulin", "metformin", "none"], 1
-            )
-        }
+        return generate_patient_medium()
 
     def grade(self, action, patient, questions_asked):
         meds = patient.get("medications", [])
@@ -87,7 +82,7 @@ class MediumTask(BaseTask):
         raw += sum(checks)
         if good_reason(action.reason, patient):
             raw += 2
-        return raw  # raw, not normalized
+        return raw
 
 
 # ---------- HARD ----------
@@ -102,13 +97,7 @@ class HardTask(BaseTask):
         }
 
     def generate_patient(self):
-        return {
-            "age": random.randint(40, 80),
-            "egfr": random.choice([44, 45, 46]),
-            "hba1c": round(random.uniform(6.0, 10.0), 1),
-            "medications": ["none"],
-            "conditions": []
-        }
+        return generate_patient_hard()
 
     def grade(self, action, patient, questions_asked):
         eligible = (
@@ -121,12 +110,74 @@ class HardTask(BaseTask):
         raw -= questions_asked
         if action.reason and str(patient["egfr"]) in action.reason:
             raw += 2
-        return raw  # raw, not normalized
+        return raw
+
+
+# ---------- RARE DISEASE (NEW HARD+) ----------
+class RareDiseaseTask(BaseTask):
+    def __init__(self):
+        super().__init__("rare_disease")
+
+    def get_criteria(self):
+        return {
+            "age_min": 18, "age_max": 55,
+            "egfr_min": 60,
+            "hba1c_max": 7.5,
+            "no_meds": ["warfarin", "insulin", "metformin", "lithium"],
+            "required_conditions": ["lupus"],
+            "max_conditions": 2
+        }
+
+    def generate_patient(self):
+        return {
+            "age": random.randint(15, 60),
+            "egfr": random.choice([55, 60, 61, 65, 70]),
+            "hba1c": round(random.uniform(6.0, 9.0), 1),
+            "medications": random.choice([
+                ["none"],
+                ["warfarin"],
+                ["metformin"],
+                ["lithium"],
+                ["hydroxychloroquine"],
+            ]),
+            "conditions": random.choice([
+                ["lupus"],
+                ["lupus", "hypertension"],
+                ["lupus", "diabetes", "hypertension"],
+                ["rheumatoid_arthritis"],
+                [],
+            ])
+        }
+
+    def grade(self, action, patient, questions_asked):
+        meds = patient.get("medications", [])
+        conditions = patient.get("conditions", [])
+
+        checks = [
+            18 <= patient["age"] <= 55,
+            patient["egfr"] >= 60,
+            patient["hba1c"] <= 7.5,
+            not any(m in ["warfarin", "insulin", "metformin", "lithium"] for m in meds),
+            "lupus" in conditions,
+            len(conditions) <= 2
+        ]
+
+        eligible = all(checks)
+        correct = action.eligible == eligible
+        raw = 20 if correct else -20
+        raw -= questions_asked
+        raw += sum(checks)
+
+        if good_reason(action.reason, patient):
+            raw += 2
+
+        return raw
 
 
 # ---------- REGISTRY ----------
 TASKS = {
     "single_criterion": EasyTask(),
     "multi_criteria": MediumTask(),
-    "edge_case": HardTask()
+    "edge_case": HardTask(),
+    "rare_disease": RareDiseaseTask()
 }

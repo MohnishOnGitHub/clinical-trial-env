@@ -11,3 +11,5 @@ tasks:
     difficulty: medium
   - id: edge_case
     difficulty: hard
+  - id: rare_disease
+    difficulty: hard+
