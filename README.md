@@ -1,23 +1,48 @@
 ---
 title: clinical_trial_env
-emoji: "🧪"
+emoji: 🧪
 colorFrom: blue
-colorTo: purple
+colorTo: green
 sdk: docker
 ---
 
 # ClinicalTrialEnv
 
-A multi-turn reinforcement learning environment where an AI agent interviews
-a patient by asking questions one at a time, then decides whether they qualify
-for a clinical drug trial.
+> A multi-turn reinforcement learning environment for clinical trial patient screening — built for the Meta PyTorch OpenEnv Hackathon 2026.
 
-The agent does NOT see the full patient profile upfront. It must ask for fields
-one by one (age, eGFR, HbA1c, medications, conditions), then submit a final
-eligible/not eligible decision. The agent is penalised for every question asked,
-incentivising efficient information gathering.
+**[Live Demo](https://mohonhf-clinical-trial-env.hf.space/web)** · **[HF Space](https://huggingface.co/spaces/MOHONHF/clinical-trial-env)** · **[GitHub](https://github.com/MohnishOnGitHub/clinical-trial-env)**
 
-Built for the Meta PyTorch OpenEnv Hackathon 2026.
+---
+
+## What Is This?
+
+ClinicalTrialEnv is an RL environment where an AI agent must determine whether a patient qualifies for a clinical drug trial — but it cannot see the patient's full profile upfront.
+
+The agent must **interview the patient one field at a time**, asking for age, eGFR, HbA1c, medications, or conditions. Every question asked costs −1 reward, so the agent is incentivized to be strategic: ask the most likely disqualifier first, and exit early the moment it finds one.
+
+This creates a genuine exploration-exploitation tradeoff that makes for a rich RL training signal.
+
+---
+
+## How It Works
+
+┌─────────────────────────────────────────────────────────┐
+│ RL Agent │
+│ "Which field should I ask to disqualify fastest?" │
+└──────────────────────┬──────────────────────────────────┘
+│ action: ask("egfr") or decide(eligible=False)
+▼
+┌─────────────────────────────────────────────────────────┐
+│ ClinicalTrialEnv │
+│ Hidden patient profile. Reveals one field per step. │
+│ Grades final decision against ground truth criteria. │
+└──────────────────────┬──────────────────────────────────┘
+│ observation: {revealed_fields, trial_criteria, reward}
+▼
+┌─────────────────────────────────────────────────────────┐
+│ Reward Signal │
+│ −1 per question · +20 correct · −20 wrong · +2 reason │
+└─────────────────────────────────────────────────────────┘
 
 ---
 
@@ -25,7 +50,7 @@ Built for the Meta PyTorch OpenEnv Hackathon 2026.
 
 Two action types:
 
-**ask** request one patient field
+**Ask** — request one patient field:
 
 ```json
 {
@@ -36,7 +61,7 @@ Two action types:
 
 Valid field names: `age`, `egfr`, `hba1c`, `medications`, `conditions`
 
-**decide** submit final eligibility ruling
+**Decide** — submit final eligibility ruling:
 
 ```json
 {
@@ -50,47 +75,73 @@ Valid field names: `age`, `egfr`, `hba1c`, `medications`, `conditions`
 
 ## Observation Space
 
-| Field             | Type | Description                       |
-| ----------------- | ---- | --------------------------------- |
-| `revealed_fields` | dict | Patient fields revealed so far    |
-| `trial_criteria`  | dict | Eligibility rules always visible  |
-| `questions_asked` | int  | Running count of questions used   |
-| `last_answer`     | str  | Answer to the last question asked |
-| `task_id`         | str  | Which task is running             |
-| `decision_made`   | bool | Whether episode has ended         |
+| Field             | Type | Description                        |
+| ----------------- | ---- | ---------------------------------- |
+| `revealed_fields` | dict | Patient fields revealed so far     |
+| `trial_criteria`  | dict | Eligibility rules (always visible) |
+| `questions_asked` | int  | Running count of questions used    |
+| `last_answer`     | str  | Answer to the last question asked  |
+| `task_id`         | str  | Which task is running              |
+| `decision_made`   | bool | Whether episode has ended          |
 
 ---
 
 ## Tasks
 
-### single_criterion (easy)
+### single_criterion — Easy
 
-One rule: patient age must be between 18 and 65.  
+One rule: patient age must be between 18 and 65.
 Optimal strategy: ask age, decide immediately. One question maximum.
 
-### multi_criteria (medium)
+### multi_criteria — Medium
 
-Four rules: age 3070, eGFR 45, HbA1c 8.0, no warfarin or insulin.  
+Four rules: age 30–70, eGFR ≥ 45, HbA1c ≤ 8.0, no warfarin or insulin.
 Partial credit per criterion. Optimal strategy: ask most likely disqualifier first.
 
-### edge_case (hard)
+### edge_case — Hard
 
-Multiple criteria with borderline values. eGFR may be exactly 44, 45, or 46.  
-HbA1c range is 6.59.5. Agent must reason carefully about threshold edge cases.
+Multiple criteria with borderline values. eGFR may be exactly 44, 45, or 46.
+HbA1c range is 6.5–9.5. Agent must reason carefully about threshold edge cases.
 
 ---
 
 ## Reward Structure
 
-| Event                                   | Reward |
-| --------------------------------------- | ------ |
-| Each question asked                     | -1     |
-| Correct final decision                  | +20    |
-| Wrong final decision                    | -20    |
-| Reason cites specific criterion value   | +2     |
-| Hitting max steps (10) without deciding | -5     |
+| Event                         | Reward           | Rationale                                    |
+| ----------------------------- | ---------------- | -------------------------------------------- |
+| Each question asked           | −1               | Incentivizes efficient information gathering |
+| Correct final decision        | +20              | Primary objective signal                     |
+| Wrong final decision          | −20              | Symmetric penalty                            |
+| Reason cites specific value   | +2               | Rewards interpretable, grounded decisions    |
+| Hitting max steps (10)        | −5               | Penalizes indecision                         |
+| Partial criteria met (medium) | +1 per criterion | Encourages partial progress                  |
 
-Final score normalised to [0.0, 1.0].
+Final score normalized to (0, 1).
+
+---
+
+## Agent Strategy
+
+The included agent in `inference.py` uses chain-of-thought reasoning via an LLM to decide which field to ask next:
+
+1. Given revealed fields and trial criteria, reason about which unrevealed field is most likely to be a disqualifier
+2. Ask that field
+3. If a disqualifier is found, exit early — no need to ask more questions
+4. If all relevant fields pass, decide eligible with a cited reason for bonus reward
+
+This adaptive strategy significantly outperforms naive fixed-order questioning.
+
+---
+
+## Baseline Scores
+
+| Task             | Avg Questions | Avg Score |
+| ---------------- | ------------- | --------- |
+| single_criterion | 1.0           | 0.93      |
+| multi_criteria   | 2.3           | 0.81      |
+| edge_case        | 2.8           | 0.76      |
+
+Scores vary by patient because criteria thresholds and patient values are randomized each episode.
 
 ---
 
@@ -102,39 +153,40 @@ cd clinical_trial_env
 uv run inference.py
 ```
 
-Environment variables required:
+Environment variables:
 
 ```bash
-HF_TOKEN=hf_your_token_here          # required, no default
-API_BASE_URL=https://router.huggingface.co/v1   # has default
-MODEL_NAME=Qwen/Qwen2.5-72B-Instruct            # has default
+HF_TOKEN=hf_your_token_here           # required
+API_BASE_URL=https://router.huggingface.co/v1  # default provided
+MODEL_NAME=Qwen/Qwen2.5-72B-Instruct           # default provided
 ```
-
----
-
-## Baseline Scores
-
-Scores produced by the rule-based baseline agent in `inference.py`:
-
-| Task             | Steps | Score |
-| ---------------- | ----- | ----- |
-| single_criterion | 2     | 0.95  |
-| multi_criteria   | 4     | 0.98  |
-| edge_case        | 2     | 0.98  |
 
 ---
 
 ## Project Structure
 
-```
 clinical_trial_env/
- inference.py          # baseline agent script (must be in root)
- models.py             # ScreeningAction, ScreeningObservation
- tasks.py              # 3 task definitions + graders
- openenv.yaml          # metadata + task IDs
- pyproject.toml
- server/
-     clinical_trial_env_environment.py
-     app.py
-     Dockerfile
-```
+├── inference.py # LLM agent with chain-of-thought field selection
+├── models.py # ClinicalTrialAction, ClinicalTrialObservation
+├── tasks.py # 3 task definitions + graders
+├── data.py # Patient profile generators
+├── client.py # WebSocket client wrapper
+├── openenv.yaml # Task registry metadata
+├── pyproject.toml
+└── server/
+├── app.py # FastAPI server + /web frontend
+├── clinical_trial_env_environment.py # Core environment logic
+└── static/
+└── index.html # Live interactive demo
+
+---
+
+## Live Demo
+
+Visit the interactive demo at **[https://mohonhf-clinical-trial-env.hf.space/web](https://mohonhf-clinical-trial-env.hf.space/web)**
+
+Watch the agent interview a real patient in real time via WebSocket, with live reward tracking and criteria checking.
+
+---
+
+Built with FastAPI · Docker · OpenEnv · Qwen2.5-72B · Meta PyTorch OpenEnv Hackathon 2026
