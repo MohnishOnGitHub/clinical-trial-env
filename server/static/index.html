@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClinicalTrialEnv — RL Environment</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080c10;
+    --bg2: #0d1117;
+    --bg3: #161b22;
+    --bg4: #1c2330;
+    --border: rgba(48, 200, 140, 0.15);
+    --border2: rgba(48, 200, 140, 0.3);
+    --green: #30c88c;
+    --green2: #1a9e6a;
+    --green-dim: rgba(48, 200, 140, 0.08);
+    --green-mid: rgba(48, 200, 140, 0.2);
+    --red: #ff5555;
+    --red-dim: rgba(255, 85, 85, 0.08);
+    --amber: #f0a030;
+    --amber-dim: rgba(240, 160, 48, 0.08);
+    --blue: #4a9eff;
+    --blue-dim: rgba(74, 158, 255, 0.08);
+    --text: #e8edf2;
+    --text2: #8b95a1;
+    --text3: #4a5568;
+    --mono: 'DM Mono', monospace;
+    --display: 'Syne', sans-serif;
+    --body: 'DM Sans', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(48, 200, 140, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(48, 200, 140, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 20px 0;
+    background: rgba(8, 12, 16, 0.8);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    border: 1.5px solid var(--green);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .logo-icon::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--green-dim);
+  }
+
+  .logo-icon svg {
+    width: 18px;
+    height: 18px;
+    stroke: var(--green);
+    fill: none;
+    stroke-width: 1.5;
+    position: relative;
+    z-index: 1;
+  }
+
+  .logo-text {
+    font-family: var(--display);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .logo-text span {
+    color: var(--green);
+  }
+
+  .header-badges {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    color: var(--text2);
+    background: var(--bg3);
+  }
+
+  .badge.live {
+    border-color: var(--green);
+    color: var(--green);
+    background: var(--green-dim);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .pulse {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  /* Hero */
+  .hero {
+    padding: 72px 0 48px;
+    text-align: center;
+  }
+
+  .hero-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--green);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .hero-tag::before,
+  .hero-tag::after {
+    content: '';
+    width: 40px;
+    height: 1px;
+    background: var(--green2);
+    opacity: 0.5;
+  }
+
+  .hero h1 {
+    font-family: var(--display);
+    font-size: clamp(36px, 6vw, 64px);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    margin-bottom: 20px;
+  }
+
+  .hero h1 .accent {
+    color: var(--green);
+    position: relative;
+    display: inline-block;
+  }
+
+  .hero p {
+    font-size: 16px;
+    color: var(--text2);
+    max-width: 560px;
+    margin: 0 auto 40px;
+    line-height: 1.7;
+  }
+
+  .hero-stats {
+    display: flex;
+    gap: 0;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    max-width: 600px;
+    margin: 0 auto;
+    background: var(--bg2);
+  }
+
+  .hero-stat {
+    flex: 1;
+    padding: 20px;
+    border-right: 1px solid var(--border);
+    text-align: center;
+  }
+
+  .hero-stat:last-child { border-right: none; }
+
+  .hero-stat-val {
+    font-family: var(--display);
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--green);
+    display: block;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .hero-stat-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* Section */
+  section {
+    padding: 48px 0;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+
+  .section-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--green);
+    background: var(--green-dim);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  .section-title {
+    font-family: var(--display);
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .section-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Demo area */
+  .demo-grid {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 16px;
+    align-items: start;
+  }
+
+  .panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg3);
+  }
+
+  .panel-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    flex: 1;
+  }
+
+  .panel-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  /* Task selector */
+  .task-selector {
+    display: flex;
+    gap: 0;
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+  }
+
+  .task-btn {
+    flex: 1;
+    padding: 10px 12px;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text2);
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
+
+  .task-btn:first-child { border-radius: 6px 0 0 6px; }
+  .task-btn:last-child { border-radius: 0 6px 6px 0; }
+  .task-btn:not(:first-child) { border-left: none; }
+
+  .task-btn.active {
+    background: var(--green-dim);
+    border-color: var(--green);
+    color: var(--green);
+  }
+
+  .task-btn:hover:not(.active) {
+    background: var(--bg3);
+    color: var(--text);
+  }
+
+  /* Patient card */
+  .patient-card {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .patient-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .patient-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--display);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--green);
+  }
+
+  .patient-info h3 {
+    font-family: var(--display);
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+
+  .patient-info p {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .patient-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .field-item {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    transition: all 0.3s;
+  }
+
+  .field-item.revealed {
+    border-color: var(--green);
+    background: var(--green-dim);
+  }
+
+  .field-item.hidden-field {
+    opacity: 0.4;
+  }
+
+  .field-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+  }
+
+  .field-value {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--green);
+  }
+
+  .field-value.hidden {
+    color: var(--text3);
+    letter-spacing: 0.2em;
+  }
+
+  /* Interview log */
+  .interview-log {
+    padding: 16px;
+    min-height: 280px;
+    max-height: 320px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .interview-log::-webkit-scrollbar { width: 4px; }
+  .interview-log::-webkit-scrollbar-track { background: transparent; }
+  .interview-log::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .log-entry {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    animation: slideIn 0.3s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .log-role {
+    font-family: var(--mono);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 3px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+    margin-top: 1px;
+    flex-shrink: 0;
+  }
+
+  .log-role.agent {
+    background: var(--blue-dim);
+    color: var(--blue);
+    border: 1px solid rgba(74, 158, 255, 0.2);
+  }
+
+  .log-role.env {
+    background: var(--green-dim);
+    color: var(--green);
+    border: 1px solid var(--border);
+  }
+
+  .log-role.system {
+    background: var(--amber-dim);
+    color: var(--amber);
+    border: 1px solid rgba(240, 160, 48, 0.2);
+  }
+
+  .log-role.decision {
+    background: var(--red-dim);
+    color: var(--red);
+    border: 1px solid rgba(255, 85, 85, 0.2);
+  }
+
+  .log-role.decision.correct {
+    background: var(--green-dim);
+    color: var(--green);
+    border: 1px solid var(--border);
+  }
+
+  .log-msg {
+    font-size: 13px;
+    color: var(--text2);
+    line-height: 1.5;
+    flex: 1;
+  }
+
+  .log-msg strong {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .log-msg .val {
+    font-family: var(--mono);
+    color: var(--green);
+    background: var(--green-dim);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+  }
+
+  /* Controls */
+  .controls {
+    padding: 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn {
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.03em;
+  }
+
+  .btn-primary {
+    background: var(--green);
+    border-color: var(--green);
+    color: #080c10;
+    font-weight: 500;
+    flex: 1;
+  }
+
+  .btn-primary:hover { background: #3dd99e; }
+  .btn-primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--text2);
+  }
+
+  .btn-secondary:hover {
+    background: var(--bg3);
+    color: var(--text);
+  }
+
+  /* Right panel */
+  .right-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* Reward tracker */
+  .reward-display {
+    padding: 20px;
+  }
+
+  .reward-main {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  .reward-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+
+  .reward-value {
+    font-family: var(--display);
+    font-size: 52px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    transition: all 0.4s;
+  }
+
+  .reward-value.positive { color: var(--green); }
+  .reward-value.negative { color: var(--red); }
+  .reward-value.neutral { color: var(--text2); }
+
+  .reward-bar-wrap {
+    height: 4px;
+    background: var(--bg3);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+
+  .reward-bar {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--green);
+    transition: width 0.5s ease;
+  }
+
+  .reward-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .reward-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+
+  .reward-row-label { color: var(--text3); }
+
+  .reward-row-val {
+    font-weight: 500;
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  .reward-row-val.pos { color: var(--green); background: var(--green-dim); }
+  .reward-row-val.neg { color: var(--red); background: var(--red-dim); }
+  .reward-row-val.neu { color: var(--text2); background: var(--bg3); }
+
+  /* Criteria panel */
+  .criteria-display {
+    padding: 16px;
+  }
+
+  .criteria-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    border: 1px solid transparent;
+    transition: all 0.3s;
+    font-size: 13px;
+  }
+
+  .criteria-item.pass {
+    background: var(--green-dim);
+    border-color: var(--border);
+  }
+
+  .criteria-item.fail {
+    background: var(--red-dim);
+    border-color: rgba(255, 85, 85, 0.2);
+  }
+
+  .criteria-item.unknown {
+    background: var(--bg3);
+    border-color: var(--border);
+    opacity: 0.6;
+  }
+
+  .criteria-icon {
+    font-family: var(--mono);
+    font-size: 10px;
+    width: 18px;
+    text-align: center;
+  }
+
+  .criteria-icon.pass { color: var(--green); }
+  .criteria-icon.fail { color: var(--red); }
+  .criteria-icon.unknown { color: var(--text3); }
+
+  .criteria-text { color: var(--text2); flex: 1; }
+  .criteria-text strong { color: var(--text); font-weight: 500; }
+
+  /* Step history bar */
+  .step-history {
+    padding: 16px;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .step-pip {
+    height: 6px;
+    flex: 1;
+    border-radius: 3px;
+    background: var(--bg3);
+    transition: all 0.3s;
+    max-width: 32px;
+  }
+
+  .step-pip.ask { background: var(--blue); opacity: 0.7; }
+  .step-pip.decide-correct { background: var(--green); }
+  .step-pip.decide-wrong { background: var(--red); }
+
+  .step-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    margin-left: 8px;
+    white-space: nowrap;
+  }
+
+  /* Architecture section */
+  .arch-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .arch-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .arch-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--green);
+    opacity: 0.5;
+  }
+
+  .arch-card.blue::before { background: var(--blue); }
+  .arch-card.amber::before { background: var(--amber); }
+
+  .arch-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+    margin-bottom: 12px;
+  }
+
+  .arch-title {
+    font-family: var(--display);
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+  }
+
+  .arch-desc {
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.6;
+  }
+
+  .arch-tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 12px;
+  }
+
+  .arch-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text3);
+  }
+
+  /* Reward table */
+  .reward-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .reward-table th {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text3);
+    padding: 8px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .reward-table td {
+    padding: 10px 16px;
+    font-size: 13px;
+    color: var(--text2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .reward-table tr:last-child td { border-bottom: none; }
+
+  .reward-table td:last-child {
+    font-family: var(--mono);
+    font-weight: 500;
+  }
+
+  .reward-table td.pos { color: var(--green); }
+  .reward-table td.neg { color: var(--red); }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 24px 0;
+    margin-top: 48px;
+    text-align: center;
+  }
+
+  .footer-inner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer-left {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+  }
+
+  .footer-links {
+    display: flex;
+    gap: 16px;
+  }
+
+  .footer-links a {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .footer-links a:hover { color: var(--green); }
+
+  /* Typing cursor */
+  .typing::after {
+    content: '|';
+    animation: blink 1s infinite;
+    color: var(--green);
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text3);
+  }
+
+  .empty-state-icon {
+    font-size: 32px;
+    margin-bottom: 12px;
+    opacity: 0.3;
+  }
+
+  .empty-state p {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  /* Verdict banner */
+  .verdict {
+    padding: 14px 20px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    margin: 12px 16px;
+    animation: slideIn 0.4s ease;
+    display: none;
+  }
+
+  .verdict.eligible {
+    background: var(--green-dim);
+    border: 1px solid var(--green);
+    color: var(--green);
+  }
+
+  .verdict.not-eligible {
+    background: var(--red-dim);
+    border: 1px solid var(--red);
+    color: var(--red);
+  }
+
+  .verdict-icon {
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .verdict-text strong {
+    font-weight: 600;
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  .verdict-text small {
+    font-size: 11px;
+    opacity: 0.8;
+    font-family: var(--mono);
+  }
+
+  @media (max-width: 900px) {
+    .demo-grid { grid-template-columns: 1fr; }
+    .arch-grid { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 36px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container">
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        </div>
+        <div class="logo-text">Clinical<span>Trial</span>Env</div>
+      </div>
+      <div class="header-badges">
+        <span class="badge">OpenEnv RL</span>
+        <span class="badge">Meta PyTorch Hackathon</span>
+        <span class="badge live"><span class="pulse"></span>Running</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-tag">Reinforcement Learning Environment</div>
+    <h1>Patient Screening<br>via <span class="accent">Sequential Reasoning</span></h1>
+    <p>An RL environment where an AI agent interviews patients one field at a time, then decides clinical trial eligibility — penalized for every unnecessary question asked.</p>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <span class="hero-stat-val">3</span>
+        <span class="hero-stat-label">Task Tiers</span>
+      </div>
+      <div class="hero-stat">
+        <span class="hero-stat-val">±20</span>
+        <span class="hero-stat-label">Decision Reward</span>
+      </div>
+      <div class="hero-stat">
+        <span class="hero-stat-val">−1</span>
+        <span class="hero-stat-label">Per Question</span>
+      </div>
+      <div class="hero-stat">
+        <span class="hero-stat-val">10</span>
+        <span class="hero-stat-label">Max Steps</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live Demo -->
+  <section>
+    <div class="section-header">
+      <span class="section-num">01</span>
+      <span class="section-title">Live Environment Demo</span>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="demo-grid">
+      <!-- Left: Interview panel -->
+      <div>
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-dot" style="background: #ff5f57"></div>
+            <div class="panel-dot" style="background: #ffbd2e; margin-left:4px;"></div>
+            <div class="panel-dot" style="background: #28c840; margin-left:4px;"></div>
+            <span class="panel-title" style="margin-left:8px;">patient_interview.log</span>
+            <span id="stepCounter" style="font-family:var(--mono);font-size:10px;color:var(--text3);">step 0/10</span>
+          </div>
+
+          <div class="task-selector">
+            <button class="task-btn active" onclick="selectTask('single_criterion', this)">Easy</button>
+            <button class="task-btn" onclick="selectTask('multi_criteria', this)">Medium</button>
+            <button class="task-btn" onclick="selectTask('edge_case', this)">Hard</button>
+          </div>
+
+          <div class="patient-card">
+            <div class="patient-header">
+              <div class="patient-avatar" id="patientAvatar">P1</div>
+              <div class="patient-info">
+                <h3 id="patientName">Patient #<span id="patientId">—</span></h3>
+                <p id="taskLabel">Select a task to begin</p>
+              </div>
+            </div>
+            <div class="patient-fields" id="patientFields">
+              <div class="field-item hidden-field" id="field-age">
+                <div class="field-label">Age</div>
+                <div class="field-value hidden" id="val-age">• • •</div>
+              </div>
+              <div class="field-item hidden-field" id="field-egfr">
+                <div class="field-label">eGFR</div>
+                <div class="field-value hidden" id="val-egfr">• • •</div>
+              </div>
+              <div class="field-item hidden-field" id="field-hba1c">
+                <div class="field-label">HbA1c</div>
+                <div class="field-value hidden" id="val-hba1c">• • •</div>
+              </div>
+              <div class="field-item hidden-field" id="field-medications">
+                <div class="field-label">Medications</div>
+                <div class="field-value hidden" id="val-medications">• • •</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="interview-log" id="interviewLog">
+            <div class="empty-state">
+              <div class="empty-state-icon">◎</div>
+              <p>Press "Run Episode" to start</p>
+            </div>
+          </div>
+
+          <div class="verdict" id="verdict">
+            <div class="verdict-icon" id="verdictIcon">✓</div>
+            <div class="verdict-text">
+              <strong id="verdictTitle">Eligible</strong>
+              <small id="verdictReason">All criteria met</small>
+            </div>
+          </div>
+
+          <div class="controls">
+            <button class="btn btn-secondary" onclick="resetDemo()">Reset</button>
+            <button class="btn btn-primary" id="runBtn" onclick="runNextStep()">▶ Run Episode</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right panel -->
+      <div class="right-panel">
+        <!-- Reward tracker -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Reward Tracker</span>
+          </div>
+          <div class="reward-display">
+            <div class="reward-main">
+              <div class="reward-label">Cumulative Score</div>
+              <div class="reward-value neutral" id="rewardDisplay">0.00</div>
+            </div>
+            <div class="reward-bar-wrap">
+              <div class="reward-bar" id="rewardBar" style="width:50%"></div>
+            </div>
+            <div class="reward-breakdown">
+              <div class="reward-row">
+                <span class="reward-row-label">Decision bonus</span>
+                <span class="reward-row-val neu" id="decisionReward">+0</span>
+              </div>
+              <div class="reward-row">
+                <span class="reward-row-label">Questions asked</span>
+                <span class="reward-row-val neu" id="questionPenalty">−0</span>
+              </div>
+              <div class="reward-row">
+                <span class="reward-row-label">Reason bonus</span>
+                <span class="reward-row-val neu" id="reasonBonus">+0</span>
+              </div>
+              <div class="reward-row" style="border-top:1px solid var(--border);padding-top:6px;margin-top:2px;">
+                <span class="reward-row-label">Steps used</span>
+                <span class="reward-row-val neu" id="stepsUsed">0 / 10</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel-header" style="border-top:1px solid var(--border)">
+            <span class="panel-title">Step History</span>
+          </div>
+          <div class="step-history">
+            <div id="stepPips" style="display:flex;gap:4px;flex:1;"></div>
+            <span class="step-label" id="stepLabel">0 steps</span>
+          </div>
+        </div>
+
+        <!-- Criteria checker -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">Eligibility Criteria</span>
+          </div>
+          <div class="criteria-display" id="criteriaDisplay">
+            <div style="text-align:center;padding:20px;color:var(--text3);font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.1em;">Select task to view criteria</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Architecture -->
+  <section>
+    <div class="section-header">
+      <span class="section-num">02</span>
+      <span class="section-title">Environment Architecture</span>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="arch-grid">
+      <div class="arch-card">
+        <div class="arch-num">01 / Environment</div>
+        <div class="arch-title">Partial Observability</div>
+        <div class="arch-desc">Patient data is hidden. The agent must request fields one at a time, receiving answers from the environment server. This creates a genuine exploration-exploitation tradeoff.</div>
+        <div class="arch-tag-list">
+          <span class="arch-tag">FastAPI</span>
+          <span class="arch-tag">WebSocket</span>
+          <span class="arch-tag">HF Spaces</span>
+          <span class="arch-tag">Docker</span>
+        </div>
+      </div>
+      <div class="arch-card blue">
+        <div class="arch-num">02 / Agent</div>
+        <div class="arch-title">Chain-of-Thought Reasoning</div>
+        <div class="arch-desc">The LLM agent reasons about which field to ask next based on revealed data, targeting the most likely disqualifier first to minimize question cost.</div>
+        <div class="arch-tag-list">
+          <span class="arch-tag">Qwen2.5-72B</span>
+          <span class="arch-tag">OpenAI SDK</span>
+          <span class="arch-tag">HF Router</span>
+        </div>
+      </div>
+      <div class="arch-card amber">
+        <div class="arch-num">03 / Reward</div>
+        <div class="arch-title">Efficiency-Incentivized Grading</div>
+        <div class="arch-desc">Every question costs −1 reward. Correct decisions earn +20, wrong decisions −20. Bonus +2 for citing specific values in the reason, incentivizing interpretable decisions.</div>
+        <div class="arch-tag-list">
+          <span class="arch-tag">Sparse Reward</span>
+          <span class="arch-tag">Partial Credit</span>
+          <span class="arch-tag">Interpretability</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Reward Structure -->
+  <section>
+    <div class="section-header">
+      <span class="section-num">03</span>
+      <span class="section-title">Reward Structure</span>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="panel">
+      <table class="reward-table">
+        <thead>
+          <tr>
+            <th>Event</th>
+            <th>Reward</th>
+            <th>Rationale</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Each question asked</td>
+            <td class="neg">−1 per question</td>
+            <td style="color:var(--text3)">Incentivizes efficient information gathering</td>
+          </tr>
+          <tr>
+            <td>Correct eligibility decision</td>
+            <td class="pos">+20</td>
+            <td style="color:var(--text3)">Primary objective signal</td>
+          </tr>
+          <tr>
+            <td>Wrong eligibility decision</td>
+            <td class="neg">−20</td>
+            <td style="color:var(--text3)">Symmetric penalty for incorrect decisions</td>
+          </tr>
+          <tr>
+            <td>Reason cites specific value</td>
+            <td class="pos">+2</td>
+            <td style="color:var(--text3)">Rewards interpretable, grounded reasoning</td>
+          </tr>
+          <tr>
+            <td>Hitting max steps (10) without deciding</td>
+            <td class="neg">−5</td>
+            <td style="color:var(--text3)">Penalizes indecision</td>
+          </tr>
+          <tr>
+            <td>Partial criteria met (medium task)</td>
+            <td class="pos">+1 per criterion</td>
+            <td style="color:var(--text3)">Encourages partial progress</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-left">ClinicalTrialEnv — Meta PyTorch OpenEnv Hackathon 2026</div>
+      <div class="footer-links">
+        <a href="https://github.com/MohnishOnGitHub/clinical-trial-env">GitHub</a>
+        <a href="https://huggingface.co/spaces/MOHONHF/clinical-trial-env">HF Space</a>
+        <a href="#">Docs</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+const TASKS = {
+  single_criterion: {
+    label: 'Single Criterion — Easy',
+    criteria: { age_min: 18, age_max: 65 },
+    fields: ['age'],
+    patients: [
+      { age: 45, egfr: 62, hba1c: 7.2, medications: ['metformin'], conditions: [] },
+      { age: 72, egfr: 55, hba1c: 6.8, medications: ['none'], conditions: [] },
+      { age: 28, egfr: 80, hba1c: 5.9, medications: ['none'], conditions: [] },
+    ]
+  },
+  multi_criteria: {
+    label: 'Multi Criteria — Medium',
+    criteria: { age_min: 30, age_max: 70, egfr_min: 45, hba1c_max: 8.0, no_meds: ['warfarin', 'insulin'] },
+    fields: ['egfr', 'age', 'hba1c', 'medications'],
+    patients: [
+      { age: 52, egfr: 58, hba1c: 7.1, medications: ['metformin'], conditions: [] },
+      { age: 25, egfr: 70, hba1c: 6.5, medications: ['none'], conditions: [] },
+      { age: 48, egfr: 38, hba1c: 7.8, medications: ['warfarin'], conditions: [] },
+    ]
+  },
+  edge_case: {
+    label: 'Edge Case — Hard',
+    criteria: { age_min: 45, age_max: 75, egfr_min: 45, hba1c_min: 6.5, hba1c_max: 9.5 },
+    fields: ['egfr', 'hba1c', 'age', 'medications', 'conditions'],
+    patients: [
+      { age: 58, egfr: 45, hba1c: 7.4, medications: ['none'], conditions: [] },
+      { age: 62, egfr: 44, hba1c: 9.5, medications: ['none'], conditions: [] },
+      { age: 71, egfr: 46, hba1c: 6.5, medications: ['none'], conditions: [] },
+    ]
+  }
+};
+
+let state = {
+  task: 'single_criterion',
+  patient: null,
+  revealed: {},
+  step: 0,
+  score: 0,
+  decisionBonus: 0,
+  questionCount: 0,
+  reasonBonus: 0,
+  done: false,
+  fieldsToAsk: [],
+  fieldIdx: 0,
+  isRunning: false
+};
+
+function selectTask(taskId, btn) {
+  document.querySelectorAll('.task-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  state.task = taskId;
+  resetDemo();
+}
+
+function resetDemo() {
+  const task = TASKS[state.task];
+  const idx = Math.floor(Math.random() * task.patients.length);
+  state.patient = { ...task.patients[idx] };
+  state.revealed = {};
+  state.step = 0;
+  state.score = 0;
+  state.decisionBonus = 0;
+  state.questionCount = 0;
+  state.reasonBonus = 0;
+  state.done = false;
+  state.fieldsToAsk = [...task.fields];
+  state.fieldIdx = 0;
+  state.isRunning = false;
+
+  const names = ['A', 'B', 'C', 'D', 'E', 'F'];
+  const n = names[Math.floor(Math.random() * names.length)];
+  document.getElementById('patientAvatar').textContent = 'P' + n;
+  document.getElementById('patientId').textContent = Math.floor(Math.random() * 9000 + 1000);
+  document.getElementById('taskLabel').textContent = task.label;
+
+  ['age', 'egfr', 'hba1c', 'medications'].forEach(f => {
+    const el = document.getElementById('field-' + f);
+    const val = document.getElementById('val-' + f);
+    if (el) { el.className = 'field-item hidden-field'; }
+    if (val) { val.className = 'field-value hidden'; val.textContent = '• • •'; }
+  });
+
+  document.getElementById('interviewLog').innerHTML = '<div class="empty-state"><div class="empty-state-icon">◎</div><p>Press "Run Episode" to start</p></div>';
+  document.getElementById('verdict').style.display = 'none';
+  document.getElementById('runBtn').textContent = '▶ Run Episode';
+  document.getElementById('runBtn').disabled = false;
+  document.getElementById('stepCounter').textContent = 'step 0/10';
+  document.getElementById('stepPips').innerHTML = '';
+  document.getElementById('stepLabel').textContent = '0 steps';
+
+  updateRewardDisplay();
+  renderCriteria();
+}
+
+function renderCriteria() {
+  const task = TASKS[state.task];
+  const c = task.criteria;
+  const p = state.patient;
+  const r = state.revealed;
+  const el = document.getElementById('criteriaDisplay');
+
+  let items = [];
+
+  if (c.age_min !== undefined) {
+    const known = r.age !== undefined;
+    const pass = known && p.age >= c.age_min && p.age <= c.age_max;
+    items.push({ label: `Age ${c.age_min}–${c.age_max}`, known, pass });
+  }
+  if (c.egfr_min !== undefined) {
+    const known = r.egfr !== undefined;
+    const pass = known && p.egfr >= c.egfr_min;
+    items.push({ label: `eGFR ≥ ${c.egfr_min}`, known, pass });
+  }
+  if (c.hba1c_max !== undefined) {
+    const known = r.hba1c !== undefined;
+    const pass = known && p.hba1c <= c.hba1c_max;
+    const label = c.hba1c_min ? `HbA1c ${c.hba1c_min}–${c.hba1c_max}` : `HbA1c ≤ ${c.hba1c_max}`;
+    items.push({ label, known, pass });
+  }
+  if (c.no_meds) {
+    const known = r.medications !== undefined;
+    const pass = known && !c.no_meds.some(m => (p.medications || []).includes(m));
+    items.push({ label: `No ${c.no_meds.join('/')}`, known, pass });
+  }
+
+  el.innerHTML = items.map(item => {
+    const cls = !item.known ? 'unknown' : item.pass ? 'pass' : 'fail';
+    const icon = !item.known ? '?' : item.pass ? '✓' : '✗';
+    return `<div class="criteria-item ${cls}">
+      <span class="criteria-icon ${cls}">${icon}</span>
+      <span class="criteria-text">${item.label}</span>
+    </div>`;
+  }).join('');
+}
+
+function addLog(role, msg) {
+  const log = document.getElementById('interviewLog');
+  if (log.querySelector('.empty-state')) log.innerHTML = '';
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="log-role ${role}">${role.toUpperCase()}</span><span class="log-msg">${msg}</span>`;
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+}
+
+function addStepPip(type) {
+  const pips = document.getElementById('stepPips');
+  const pip = document.createElement('div');
+  pip.className = 'step-pip ' + type;
+  pips.appendChild(pip);
+  document.getElementById('stepLabel').textContent = (pips.children.length) + ' steps';
+}
+
+function updateRewardDisplay() {
+  const val = state.score;
+  const el = document.getElementById('rewardDisplay');
+  el.textContent = (val >= 0 ? '+' : '') + val.toFixed(2);
+  el.className = 'reward-value ' + (val > 0 ? 'positive' : val < 0 ? 'negative' : 'neutral');
+
+  const pct = Math.max(0, Math.min(100, ((val + 25) / 50) * 100));
+  document.getElementById('rewardBar').style.width = pct + '%';
+  document.getElementById('rewardBar').style.background = val >= 0 ? 'var(--green)' : 'var(--red)';
+
+  document.getElementById('decisionReward').textContent = (state.decisionBonus >= 0 ? '+' : '') + state.decisionBonus;
+  document.getElementById('decisionReward').className = 'reward-row-val ' + (state.decisionBonus > 0 ? 'pos' : state.decisionBonus < 0 ? 'neg' : 'neu');
+  document.getElementById('questionPenalty').textContent = '−' + state.questionCount;
+  document.getElementById('questionPenalty').className = 'reward-row-val ' + (state.questionCount > 0 ? 'neg' : 'neu');
+  document.getElementById('reasonBonus').textContent = '+' + state.reasonBonus;
+  document.getElementById('reasonBonus').className = 'reward-row-val ' + (state.reasonBonus > 0 ? 'pos' : 'neu');
+  document.getElementById('stepsUsed').textContent = state.step + ' / 10';
+  document.getElementById('stepCounter').textContent = 'step ' + state.step + '/10';
+}
+
+function revealField(field) {
+  const p = state.patient;
+  state.revealed[field] = p[field];
+
+  const el = document.getElementById('field-' + field);
+  const val = document.getElementById('val-' + field);
+  if (el) {
+    el.className = 'field-item revealed';
+    const v = p[field];
+    if (val) {
+      val.className = 'field-value';
+      val.textContent = Array.isArray(v) ? v.join(', ') : String(v);
+    }
+  }
+}
+
+function checkEligible() {
+  const task = TASKS[state.task];
+  const c = task.criteria;
+  const p = state.patient;
+  const meds = p.medications || [];
+
+  let eligible = true;
+  if (c.age_min !== undefined && (p.age < c.age_min || p.age > c.age_max)) eligible = false;
+  if (c.egfr_min !== undefined && p.egfr < c.egfr_min) eligible = false;
+  if (c.hba1c_max !== undefined && p.hba1c > c.hba1c_max) eligible = false;
+  if (c.hba1c_min !== undefined && p.hba1c < c.hba1c_min) eligible = false;
+  if (c.no_meds && c.no_meds.some(m => meds.includes(m))) eligible = false;
+  return eligible;
+}
+
+function buildReason(eligible) {
+  const p = state.patient;
+  const r = state.revealed;
+  const task = TASKS[state.task];
+  const c = task.criteria;
+
+  if (!eligible) {
+    if (r.age !== undefined && (p.age < c.age_min || p.age > c.age_max))
+      return `Age ${p.age} is outside the required range ${c.age_min}–${c.age_max}`;
+    if (r.egfr !== undefined && c.egfr_min && p.egfr < c.egfr_min)
+      return `eGFR ${p.egfr} is below the minimum threshold of ${c.egfr_min}`;
+    if (r.hba1c !== undefined && c.hba1c_max && p.hba1c > c.hba1c_max)
+      return `HbA1c ${p.hba1c} exceeds maximum of ${c.hba1c_max}`;
+    if (r.medications !== undefined && c.no_meds) {
+      const bad = (p.medications || []).filter(m => c.no_meds.includes(m));
+      if (bad.length) return `Patient is on excluded medication: ${bad.join(', ')}`;
+    }
+    return 'One or more criteria not met based on revealed fields';
+  }
+  const parts = [];
+  if (r.age !== undefined) parts.push(`age ${p.age}`);
+  if (r.egfr !== undefined) parts.push(`eGFR ${p.egfr}`);
+  if (r.hba1c !== undefined) parts.push(`HbA1c ${p.hba1c}`);
+  return `All criteria met: ${parts.join(', ')} within required ranges`;
+}
+
+async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function runNextStep() {
+  if (state.done || state.isRunning) return;
+  state.isRunning = true;
+  document.getElementById('runBtn').disabled = true;
+
+  const fieldsToAsk = state.fieldsToAsk;
+
+  for (let i = state.fieldIdx; i < fieldsToAsk.length; i++) {
+    const field = fieldsToAsk[i];
+    state.step++;
+    state.questionCount++;
+    state.score -= 1;
+
+    addLog('agent', `Requesting patient field: <strong>${field.toUpperCase()}</strong>`);
+    await sleep(600);
+
+    revealField(field);
+    const val = state.patient[field];
+    const displayVal = Array.isArray(val) ? val.join(', ') : String(val);
+    addLog('env', `<strong>${field}</strong> = <span class="val">${displayVal}</span>`);
+
+    addStepPip('ask');
+    updateRewardDisplay();
+    renderCriteria();
+
+    await sleep(500);
+
+    // Check for early disqualifier
+    const c = TASKS[state.task].criteria;
+    const p = state.patient;
+    let earlyFail = false;
+    let earlyReason = '';
+
+    if (field === 'age' && c.age_min && (p.age < c.age_min || p.age > c.age_max)) {
+      earlyFail = true;
+      earlyReason = `Age ${p.age} outside range ${c.age_min}–${c.age_max}`;
+    }
+    if (field === 'egfr' && c.egfr_min && p.egfr < c.egfr_min) {
+      earlyFail = true;
+      earlyReason = `eGFR ${p.egfr} below minimum ${c.egfr_min}`;
+    }
+    if (field === 'medications' && c.no_meds) {
+      const bad = (p.medications || []).filter(m => c.no_meds.includes(m));
+      if (bad.length) { earlyFail = true; earlyReason = `Excluded medication: ${bad.join(', ')}`; }
+    }
+
+    if (earlyFail) {
+      state.fieldIdx = i + 1;
+      addLog('agent', `<strong>Early disqualifier detected.</strong> Making decision now to save steps.`);
+      await sleep(500);
+      await makeDecision(false, earlyReason);
+      state.isRunning = false;
+      return;
+    }
+
+    state.fieldIdx = i + 1;
+  }
+
+  // All fields asked — make final decision
+  await sleep(400);
+  const eligible = checkEligible();
+  const reason = buildReason(eligible);
+  addLog('agent', `All required fields gathered. Reasoning about eligibility...`);
+  await sleep(600);
+  await makeDecision(eligible, reason);
+  state.isRunning = false;
+}
+
+async function makeDecision(eligible, reason) {
+  state.step++;
+  state.done = true;
+  state.decisionBonus = eligible ? 20 : -20;
+  state.score += state.decisionBonus;
+
+  // Check reason bonus
+  const p = state.patient;
+  const reasonLower = reason.toLowerCase();
+  if (
+    (reasonLower.includes('egfr') && reasonLower.includes(String(p.egfr))) ||
+    (reasonLower.includes('hba1c') && reasonLower.includes(String(p.hba1c))) ||
+    (reasonLower.includes('age') && reasonLower.includes(String(p.age)))
+  ) {
+    state.reasonBonus = 2;
+    state.score += 2;
+  }
+
+  const roleClass = eligible ? 'decision correct' : 'decision';
+  addLog(roleClass, `<strong>DECISION: ${eligible ? 'ELIGIBLE' : 'NOT ELIGIBLE'}</strong> — ${reason}`);
+
+  addStepPip(eligible ? 'decide-correct' : 'decide-wrong');
+  updateRewardDisplay();
+
+  await sleep(300);
+
+  const verdict = document.getElementById('verdict');
+  verdict.className = 'verdict ' + (eligible ? 'eligible' : 'not-eligible');
+  verdict.style.display = 'flex';
+  document.getElementById('verdictIcon').textContent = eligible ? '✓' : '✗';
+  document.getElementById('verdictTitle').textContent = eligible ? 'Patient Eligible' : 'Patient Not Eligible';
+  document.getElementById('verdictReason').textContent = reason;
+
+  document.getElementById('runBtn').textContent = '▶ New Patient';
+  document.getElementById('runBtn').disabled = false;
+  document.getElementById('runBtn').onclick = resetDemo;
+
+  addLog('system', `Episode complete. Score: <span class="val">${state.score.toFixed(2)}</span> | Steps: ${state.step} | Questions: ${state.questionCount}`);
+}
+
+// Initialize
+resetDemo();
+</script>
+</body>
+</html>

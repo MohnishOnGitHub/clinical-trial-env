@@ -1,6 +1,8 @@
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from openenv.core.env_server.http_server import create_app
+import os
 
 from models import ClinicalTrialAction, ClinicalTrialObservation
 from server.clinical_trial_env_environment import ClinicalTrialEnvironment
@@ -16,6 +18,13 @@ openenv_app = create_app(
 
 # Mount OpenEnv at root so /reset, /step, /close are all reachable
 app = openenv_app
+
+# Serve the frontend HTML
+@app.get("/web", response_class=HTMLResponse)
+def frontend():
+    static_path = os.path.join(os.path.dirname(__file__), "static", "index.html")
+    with open(static_path, "r") as f:
+        return HTMLResponse(content=f.read())
 
 # Add health routes on top
 @app.get("/")
