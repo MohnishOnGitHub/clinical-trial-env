@@ -13,9 +13,9 @@ def generate_patient_medium():
         "egfr": random.randint(20, 100),
         "hba1c": round(random.uniform(5.0, 10.0), 1),
         "medications": random.choice([
-            [], 
-            ["insulin"], 
-            ["warfarin"], 
+            ["none"],
+            ["insulin"],
+            ["warfarin"],
             ["metformin"]
         ])
     }
@@ -23,14 +23,14 @@ def generate_patient_medium():
 
 def generate_patient_hard():
     return {
-        "age": random.randint(25, 75),
-        "egfr": random.choice([44, 45, 46]),  # borderline
-        "hba1c": random.choice([7.9, 8.0, 8.1]),  # borderline
+        "age": random.randint(40, 80),
+        "egfr": random.choice([44, 45, 46]),
+        "hba1c": round(random.uniform(6.0, 10.0), 1),
         "medications": random.choice([
+            ["none"],
             ["insulin"],
             ["warfarin"],
-            ["metformin"],
-            []
+            ["metformin"]
         ]),
         "conditions": random.choice([
             ["diabetes"],
@@ -40,10 +40,10 @@ def generate_patient_hard():
     }
 
 
-def generate_patient(task_id="easy"):
-    if task_id == "easy":
+def generate_patient(task_id="single_criterion"):
+    if task_id == "single_criterion":
         return generate_patient_easy()
-    elif task_id == "medium":
+    elif task_id == "multi_criteria":
         return generate_patient_medium()
     else:
         return generate_patient_hard()
