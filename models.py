@@ -1,5 +1,5 @@
 from openenv.core.env_server.types import Action, Observation
-from typing import Literal, Optional, Dict
+from typing import Literal, Optional, Dict, Union
 
 
 class ClinicalTrialAction(Action):
